@@ -1516,6 +1516,7 @@ class ScriptThread(QThread):
                                     base_colors.append((color1, color2))
                                 self.log_signal.emit("第1回合，记录基准背景色完成")
 
+                            """                             
                             self_shield_targets = scan_self_shield_targets()
                             if self_shield_targets:
                                 # 暂停脚本并通知用户
@@ -1533,7 +1534,8 @@ class ScriptThread(QThread):
                                 # 跳过后续操作
                                 last_detected_button = key
                                 button_detected = True
-                                break
+                                break 
+                            """
 
                             if current_round_count in (4, 5, 6, 7, 8):  # 第4 ，5，6 ,7,8回合
                                 self.log_signal.emit(f"第{current_round_count}回合，执行进化/超进化")
@@ -2608,4 +2610,4 @@ if __name__ == "__main__":
         sys.exit(app.exec_())
     except Exception as e:
         # 弹窗提示错误
-        QMessageBox.critical(None， "错误", f"程序崩溃: {e}")
+        QMessageBox.critical(None, "错误", f"程序崩溃: {e}")
