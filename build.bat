@@ -23,6 +23,7 @@ timeout /t 3 /nobreak >nul
 xcopy /E /I "国服覆盖资源" release\国服覆盖资源
 xcopy /E /I "国际服覆盖资源" release\国际服覆盖资源
 xcopy /E /I shield release\shield
+xcopy /E /I templates_cost release\templates_cost
 
 :: Step 7: 复制国服覆盖资源内容到根目录
 xcopy /E /I "国服覆盖资源\*" release\
