@@ -16,7 +16,7 @@ IF EXIST release (rd /s /q release)
 md release
 
 :: Step 5: 复制可执行文件
-copy dist\sv-auto.exe release\sv-auto.exe
+copy dist\ShadowverseAutomation.exe release\sv-auto.exe
 
 :: Step 6: 复制资源文件夹
 timeout /t 3 /nobreak >nul
