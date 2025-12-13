@@ -2,7 +2,7 @@
 :: 设置命令行编码为 UTF-8，避免出现乱码
 chcp 65001
 
-SET VENV_DIR=venv
+SET VENV_DIR=.venv
 SET REQUIREMENTS_FILE=requirements.txt
 
 :: Step 2: 激活虚拟环境
@@ -30,3 +30,5 @@ xcopy /E /I "国服覆盖资源\*" release\
 :: Step 8: 复制其他资源文件
 copy 使用说明.txt release\使用说明.txt
 copy config-template.json release\config.json
+
+pause
