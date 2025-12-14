@@ -1175,7 +1175,7 @@ class ScriptThread(QThread):
                 'war': create_template_info(load_template(templates_dir, 'war.png'), "决斗"),
                 'mainPage': create_template_info(load_template(templates_dir, 'mainPage.png'), "游戏主页面"),
                 'MuMuPage': create_template_info(load_template(templates_dir, 'MuMuPage.png'), "MuMu主页面"),
-                'LoginPage': create_template_info(load_template(templates_dir, 'LoginPage.png'), "排队主界面", threshold=0.35),
+                'LoginPage': create_template_info(load_template(templates_dir, 'LoginPage.png'), "排队主界面"),
                 'enterGame': create_template_info(load_template(templates_dir, 'enterGame.png'), "排队进入"),
                 'yes': create_template_info(load_template(templates_dir, 'Yes.png'), "继续中断的对战"),
                 'close1': create_template_info(load_template(templates_dir, 'close1.png'), "关闭卡组预览/编辑"),
@@ -1560,6 +1560,11 @@ class ScriptThread(QThread):
                         # 计算中心点并点击
                         center_x = max_loc[0] + template_info['w'] // 2
                         center_y = max_loc[1] + template_info['h'] // 2
+                        # 登陆界面偏移
+                        """                         
+                        if key == 'LoginPage':
+                            center_x += 400 
+                        """
                         self.u2_device.click(center_x + random.randint(-2, 2), center_y + random.randint(-2, 2))
                         button_detected = True
 
