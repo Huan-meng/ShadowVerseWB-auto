@@ -10,8 +10,10 @@ import datetime
 import random
 import io
 import ctypes
-from ctypes import wintypes
-from ctypes import windll
+import argparse
+import requests
+import re
+from ctypes import wintypes, windll
 
 from PyQt5.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QLabel,
@@ -19,9 +21,9 @@ from PyQt5.QtWidgets import (
     QComboBox, QMessageBox, QSizePolicy, QStackedWidget, QDialog, QFormLayout
 )
 from PyQt5.QtCore import Qt, QThread, pyqtSignal, QTimer
-from PyQt5.QtGui import QPalette, QColor, QPixmap, QBrush, QDoubleValidator
-from PyQt5.QtWidgets import QMessageBox
-from PyQt5.QtGui import QIntValidator  
+from PyQt5.QtGui import QPalette, QColor, QPixmap, QBrush, QDoubleValidator, QIntValidator
+
+
 
 # 当前版本号
 CURRENT_VERSION = "1.2.0"
@@ -56,6 +58,7 @@ DEFAULT_CONFIG = {
     "inactivity_timeout_hours": 0, # 新增：挂机时长小时数
     "inactivity_timeout_minutes": 5, # 新增：挂机时长分钟数
     "inactivity_timeout_seconds": 0, # 新增：挂机时长秒数
+    "qmsg_key": "",  # 新增：Qmsg推送密钥
 }
 
 def load_config():
@@ -1103,7 +1106,9 @@ class ScriptThread(QThread):
         self.adb_port = config["emulator_port"]
         self.scan_interval = config["scan_interval"]
         self.server = config["server"]  # 当前选择的服务器
-# 从配置中获取换牌策略
+        self.qmsg_key = config.get("qmsg_key", "")  # Qmsg推送密钥
+        self.qmsg_sent = False  # 标记是否已发送过Qmsg通知
+        # 从配置中获取换牌策略
         self.card_replacement_strategy = config.get("card_replacement", {}).get("strategy", "3费档次")        
         # 初始化设备对象
         self.u2_device = None
@@ -1117,6 +1122,45 @@ class ScriptThread(QThread):
         ui_handler.setFormatter(logging.Formatter('%(asctime)s - %(levelname)s - %(message)s'))
         logger.removeHandler(console_handler)
         logger.addHandler(ui_handler)
+
+    def send_qmsg(self, message: str) -> bool:
+        """发送Qmsg通知
+
+        Args:
+            message: 要发送的通知内容
+
+        Returns:
+            是否发送成功
+        """
+        if not self.qmsg_key:
+            self.log_signal.emit("未配置Qmsg密钥，跳过通知发送")
+            return False
+        if self.qmsg_sent:
+            self.log_signal.emit("Qmsg通知已发送，跳过")
+            return False
+
+        # 过滤 URL
+        message = re.sub(r'https?://\S+', '[URL已过滤]', message)
+        # 过滤 IPv4 地址
+        message = re.sub(r'\b(?:\d{1,3}\.){3}\d{1,3}\b', '[IP已过滤]', message)
+        # 过滤连续5位以上的数字串
+        message = re.sub(r'\d{6,}', '[数字串已过滤]', message)
+        # 过滤类似 (android.app,android.app) 的模式
+        message = re.sub(r'\([^,]+\.[^,]+,[^,]+\.[^)]+\)', '[包名已过滤]', message)
+
+        headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'}
+        qmsg_url = f"https://qmsg.zendee.cn/jsend/{self.qmsg_key}"
+        payload = {"msg": message}
+
+        try:
+            response = requests.post(qmsg_url, json=payload, headers=headers)
+            response.raise_for_status()
+            self.log_signal.emit(f"Qmsg通知发送成功，状态码: {response.status_code}")
+            self.qmsg_sent = True
+            return True
+        except requests.exceptions.RequestException as e:
+            self.log_signal.emit(f"发送Qmsg通知失败: {str(e)}")
+            return False
 
     def run(self):
         try:
@@ -1304,6 +1348,9 @@ class ScriptThread(QThread):
                         server_name = "国际服"
                     
                     self.log_signal.emit(f"检测到5分钟无活动，正在重启{server_name}应用...")
+                    
+                    # 发送Qmsg通知
+                    self.send_qmsg(f"sv-auto [端口:{self.adb_port}] 检测到5分钟无活动，正在重启{server_name}应用")
                     
                     # 强制停止目标应用
                     self.adb_device.shell(f"am force-stop {target_package}")
@@ -1618,6 +1665,8 @@ class ScriptThread(QThread):
             logger.error(error_msg)
             self.status_signal.emit("已停止")
             self.error_signal.emit(f"{str(e)}")
+            # 发送Qmsg通知
+            self.send_qmsg(f"sv-auto [端口:{self.adb_port}] 脚本运行出错: {str(e)}")
             return
 
     def start_new_match(self):
@@ -1879,7 +1928,7 @@ class SettingsPage(QWidget):
         self.parent.stacked_widget.setCurrentIndex(0)
 
 class ShadowverseAutomationUI(QMainWindow):
-    def __init__(self):
+    def __init__(self, port=None, qmsg_key=None):
         super().__init__()
         # 移除窗口边框和标题栏
         self.setWindowFlags(Qt.WindowMinimizeButtonHint | Qt.FramelessWindowHint)
@@ -1888,6 +1937,17 @@ class ShadowverseAutomationUI(QMainWindow):
         
         # 加载配置
         self.config = load_config()
+        
+        # 记录是否通过命令行传入了端口
+        self.auto_start = port is not None
+        
+        # 如果提供了端口参数，覆盖配置文件中的端口
+        if port is not None:
+            self.config["emulator_port"] = port
+        
+        # 如果提供了qmsg_key参数，覆盖配置文件中的qmsg_key
+        if qmsg_key is not None:
+            self.config["qmsg_key"] = qmsg_key
         
         # 设置窗口背景
         self.set_background()
@@ -2601,6 +2661,13 @@ class ShadowverseAutomationUI(QMainWindow):
             self.move(event.globalPos() - self.drag_position)
             event.accept()
 
+    def showEvent(self, event):
+        super().showEvent(event)
+        # 如果通过命令行传入了端口，自动点击开始运行按钮
+        if self.auto_start:
+            # 延迟一下，确保UI完全初始化
+            QTimer.singleShot(1000, self.start_script)
+
     def closeEvent(self, event):
         if self.script_thread:
             self.script_thread.stop()
@@ -2608,9 +2675,15 @@ class ShadowverseAutomationUI(QMainWindow):
         event.accept()
 
 if __name__ == "__main__":
+    # 解析命令行参数
+    parser = argparse.ArgumentParser(description='Shadowverse 自动化脚本')
+    parser.add_argument('--port', type=int, help='模拟器端口号')
+    parser.add_argument('--qmsg-key', type=str, help='Qmsg推送密钥')
+    args = parser.parse_args()
+    
     try:
         app = QApplication(sys.argv)
-        window = ShadowverseAutomationUI()
+        window = ShadowverseAutomationUI(port=args.port, qmsg_key=args.qmsg_key)
         window.show()
         sys.exit(app.exec_())
     except Exception as e:
