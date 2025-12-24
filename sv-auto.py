@@ -2557,13 +2557,15 @@ class ShadowverseAutomationUI(QMainWindow):
             self.log_output.append(f"保存配置失败: {str(e)}")
 
     def start_script(self):
-        # 检查是否已有线程在运行
-        if self.script_thread and (self.script_thread.isRunning() or not self.script_thread.isFinished()):
-            self.log_output.append("已有线程在运行，请勿重复启动")
-            return
-        
         self.log_output.append("正在连接设备...")
         self.start_btn.setEnabled(False)
+
+        # 检查是否已有线程在运行，如果有则先停止
+        if hasattr(self, 'script_thread') and self.script_thread and self.script_thread.isRunning():
+            self.log_output.append("检测到已有线程在运行，正在停止旧线程...")
+            self.script_thread.stop()
+            self.script_thread.wait()
+            self.log_output.append("旧线程已停止")
 
         # 加载配置
         config = self.config
