@@ -138,8 +138,7 @@ base_colors = None
 # 是否在对战中
 in_match = False
 
-# UI日志信号
-ui_log_signal = pyqtSignal(str)
+
 
 # ================== 核心功能函数 ==================
 def take_screenshot():
@@ -1084,8 +1083,14 @@ class UILogHandler(logging.Handler):
         self.log_signal = log_signal
 
     def emit(self, record):
-        log_entry = self.format(record)
-        self.log_signal.emit(log_entry)
+        try:
+            log_entry = self.format(record)
+            if hasattr(self.log_signal, 'emit'):
+                self.log_signal.emit(log_entry)
+        except Exception as e:
+            # 如果信号发射失败，使用print作为备选
+            print(f"日志信号发射失败: {e}")
+            print(f"日志内容: {self.format(record)}")
 
 class ScriptThread(QThread):
     log_signal = pyqtSignal(str)
@@ -1711,6 +1716,10 @@ class ScriptThread(QThread):
 
     def stop(self):
         self.running = False
+        # 清理日志处理器
+        for handler in logger.handlers[:]:
+            if isinstance(handler, UILogHandler):
+                logger.removeHandler(handler)
 
     def pause(self):
         self.paused = True
