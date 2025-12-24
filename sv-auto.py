@@ -102,9 +102,11 @@ console_handler = logging.StreamHandler(sys.stdout)
 console_formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
 console_handler.setFormatter(console_formatter)
 
-# 添加处理器
-logger.addHandler(file_handler)
-logger.addHandler(console_handler)
+# 添加处理器（确保只添加一次）
+if not any(isinstance(handler, logging.FileHandler) for handler in logger.handlers):
+    logger.addHandler(file_handler)
+if not any(isinstance(handler, logging.StreamHandler) for handler in logger.handlers):
+    logger.addHandler(console_handler)
 
 # 回合统计相关变量
 current_round_count = 1  # 当前对战的回合数
@@ -1122,9 +1124,15 @@ class ScriptThread(QThread):
         # 模板字典
         self.templates = {}
 
-        # 设置日志处理器
+        # 设置日志处理器（确保只添加一次）
         ui_handler = UILogHandler(self.log_signal)
         ui_handler.setFormatter(logging.Formatter('%(asctime)s - %(levelname)s - %(message)s'))
+        
+        # 移除现有的UI处理器（如果存在）
+        for handler in logger.handlers[:]:
+            if isinstance(handler, UILogHandler):
+                logger.removeHandler(handler)
+        
         logger.removeHandler(console_handler)
         logger.addHandler(ui_handler)
 
