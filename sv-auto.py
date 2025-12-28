@@ -1342,8 +1342,10 @@ class ScriptThread(QThread):
                 self.adb_device = device
                 logger.info("设备连接成功")
             except Exception as e:
-                logger.error(f"设备连接失败: {str(e)}")
+                error_msg = f"设备连接失败: {str(e)}"
+                logger.error(error_msg)
                 self.status_signal.emit("连接失败")
+                self.error_signal.emit(error_msg)
                 return
 
             def restart_app():
@@ -1957,6 +1959,8 @@ class ShadowverseAutomationUI(QMainWindow):
         
         # 记录是否通过命令行传入了端口
         self.auto_start = port is not None
+        # 自动启动执行标志，确保只执行一次
+        self.auto_start_executed = False
         
         # 如果提供了端口参数，覆盖配置文件中的端口
         if port is not None:
@@ -2593,16 +2597,21 @@ class ShadowverseAutomationUI(QMainWindow):
             self.script_thread.resume()
             self.resume_btn.setEnabled(False)
 
+    def reset_button_states(self):
+        """重置所有按钮状态为初始状态"""
+        self.start_btn.setEnabled(True)
+        self.resume_btn.setEnabled(False)
+        self.stop_btn.setEnabled(False)
+        self.pause_btn.setEnabled(False)
+        self.timer.stop()  # 停止运行时间计时器
+
     def handle_script_error(self, error_msg):
         self.log_output.append(f"脚本线程错误，请关闭并重启脚本后尝试，错误信息:\n {error_msg}")
         if self.script_thread:
             self.script_thread.stop()
             self.script_thread.wait()
         # 重置按钮状态
-        self.start_btn.setEnabled(True)
-        self.resume_btn.setEnabled(False)
-        self.stop_btn.setEnabled(False)
-        self.pause_btn.setEnabled(False)
+        self.reset_button_states()
         self.update_status("已停止")
 
     def stop_script(self):
@@ -2610,11 +2619,7 @@ class ShadowverseAutomationUI(QMainWindow):
             self.log_output.append(f"脚本已停止")
             self.script_thread.stop()
             self.script_thread.wait()
-            self.start_btn.setEnabled(True)
-            self.resume_btn.setEnabled(False)
-            self.stop_btn.setEnabled(False)
-            self.pause_btn.setEnabled(False)
-            self.timer.stop()
+            self.reset_button_states()
             self.update_status("已停止")
 
     def pause_script(self):
@@ -2687,10 +2692,11 @@ class ShadowverseAutomationUI(QMainWindow):
 
     def showEvent(self, event):
         super().showEvent(event)
-        # 如果通过命令行传入了端口，自动点击开始运行按钮
-        if self.auto_start:
+        # 如果通过命令行传入了端口，自动点击开始运行按钮（只执行一次）
+        if self.auto_start and not self.auto_start_executed:
             # 延迟一下，确保UI完全初始化
             QTimer.singleShot(1000, self.start_script)
+            self.auto_start_executed = True
 
     def closeEvent(self, event):
         if self.script_thread:
